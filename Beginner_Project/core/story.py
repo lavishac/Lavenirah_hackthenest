@@ -76,12 +76,15 @@ def parse_scene(text):
     return d if valid_scene(d) else None
 
 
-def _ask_gemini(prompt):
+def _ask_gemini(prompt, json_mode=False):
     global _client
     from google import genai
 
     _client = _client or genai.Client(api_key=os.getenv('GEMINI_API_KEY'))
-    return _client.models.generate_content(model=MODEL, contents=prompt).text
+    config = {'response_mime_type': 'application/json'} if json_mode else None
+    return _client.models.generate_content(
+        model=MODEL, contents=prompt, config=config
+    ).text
 
 
 EXAMPLE = {
@@ -113,7 +116,7 @@ def build_prompt(state, last_outcome, setting=''):
 def next_scene(state, last_outcome, use_ai=True, setting=''):
     if use_ai:
         try:
-            scene = parse_scene(_ask_gemini(build_prompt(state, last_outcome, setting)))
+            scene = parse_scene(_ask_gemini(build_prompt(state, last_outcome, setting), json_mode=True))
             if scene:
                 return scene
         except Exception as err:

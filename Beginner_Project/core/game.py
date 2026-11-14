@@ -6,7 +6,7 @@ MAX_TURNS = 8
 MAX_STAT = 10
 HUNGER = 1  # food lost every turn (the chicks are hungry)
 THREAT_CHANCE = 0.5  # chance of a danger each turn
-THREAT_DAMAGE = 2
+THREAT_DAMAGE = 3
 
 
 @dataclass
