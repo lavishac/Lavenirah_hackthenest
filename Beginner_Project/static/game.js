@@ -1,5 +1,6 @@
 const sky = document.querySelector('#sky');
 const ctx = sky.getContext('2d');
+const nextDay = document.querySelector('#next-day');
 const els = {
   weather: document.querySelector('#weather'),
   days: document.querySelector('#days'),
@@ -7,7 +8,6 @@ const els = {
   warn: document.querySelector('#warn'),
   outcome: document.querySelector('#outcome'),
   scene: document.querySelector('#scene'),
-  choices: document.querySelector('#choices'),
   ending: document.querySelector('#ending'),
   fly: document.querySelector('#fly-line'),
   note: document.querySelector('#sound-note'),
@@ -17,25 +17,18 @@ const els = {
   restart: document.querySelector('#restart'),
 };
 
-const LABELS = {
-  cautious: ['Safe', 'Fixes the nest'],
-  clever: ['Clever', 'Finds food'],
-  bold: ['Risky', 'A gamble: big meal or damage'],
-};
-
+const FLIGHT_MS = 20000;
 let world = { period: 'day', raining: false, wind: 8 };
-let busy = false;
-let locked = false;
-const eagle = { x: 180, y: 90 };
-const pointer = { x: 180, y: 90, on: false };
+let mode = 'wait';
+let flight = null;
+let landing = false;
+let view = { width: 800, height: 420 };
 const keys = new Set();
-let zone = null;
-let pending = null;
-let view = { width: 800, height: 360 };
+const pointer = { y: 180, on: false };
 
 function resize() {
   const width = sky.clientWidth || 800;
-  const height = 360;
+  const height = 420;
   const dpr = window.devicePixelRatio || 1;
   if (sky.width !== Math.floor(width * dpr) || sky.height !== Math.floor(height * dpr)) {
     sky.width = Math.floor(width * dpr);
@@ -45,171 +38,7 @@ function resize() {
   view = { width, height };
 }
 
-function zoneAt(x, y) {
-  const nest = { x: view.width * 0.66, y: view.height * 0.56, r: 74 };
-  const boat = { x: view.width * 0.40, y: view.height * 0.78, r: 52 };
-  const near = (spot) => Math.hypot(x - spot.x, y - spot.y) < spot.r;
-  if (near(nest)) return 'cautious';
-  if (near(boat)) return 'clever';
-  if (y > view.height * 0.68) return 'bold';
-  return null;
-}
-
-function paint(time) {
-  resize();
-  const { width, height } = view;
-  const period = world.period || 'day';
-  const top = period === 'dawn' ? '#f6d7a8' : period === 'day' ? '#8ecae6' : period === 'dusk' ? '#f4a261' : '#1d2a4a';
-  const bottom = period === 'dawn' ? '#e7a16a' : period === 'day' ? '#d8f3dc' : period === 'dusk' ? '#5c4d7a' : '#121a16';
-  let ax = 0;
-  let ay = 0;
-  if (keys.has('ArrowLeft') || keys.has('KeyA')) ax -= 1;
-  if (keys.has('ArrowRight') || keys.has('KeyD')) ax += 1;
-  if (keys.has('ArrowUp') || keys.has('KeyW')) ay -= 1;
-  if (keys.has('ArrowDown') || keys.has('KeyS')) ay += 1;
-  if (pointer.on) {
-    ax += (pointer.x - eagle.x) * 0.045;
-    ay += (pointer.y - eagle.y) * 0.045;
-  }
-  ax += Math.sin(time / 700) * 0.12;
-  eagle.x = Math.max(28, Math.min(width - 28, eagle.x + ax * 4.2));
-  eagle.y = Math.max(28, Math.min(height - 28, eagle.y + ay * 4.2));
-
-  const nest = { x: width * 0.66, y: height * 0.56, r: 74, name: 'NEST · fix it' };
-  const boat = { x: width * 0.40, y: height * 0.78, r: 52, name: 'BOAT · find food' };
-  const riverY = height * 0.68;
-  const near = (spot) => Math.hypot(eagle.x - spot.x, eagle.y - spot.y) < spot.r;
-  if (near(nest)) zone = 'cautious';
-  else if (near(boat)) zone = 'clever';
-  else if (eagle.y > riverY) zone = 'bold';
-  else zone = null;
-  if (!locked && !busy && keys.has('Space')) land(zone);
-  if (!locked && !busy && pending && zone === pending) land(pending);
-
-  const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0, top);
-  grad.addColorStop(1, bottom);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, width, height);
-  if (world.raining) {
-    ctx.strokeStyle = 'rgba(216,243,220,0.45)';
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 18; i++) {
-      const x = (i * 57 + time / 8) % width;
-      ctx.beginPath();
-      ctx.moveTo(x, (i * 40) % height);
-      ctx.lineTo(x - 10, (i * 40) % height + 18);
-      ctx.stroke();
-    }
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  const cloudX = ((time / 40) % (width + 160)) - 80;
-  ctx.beginPath();
-  ctx.ellipse(cloudX, 70, 54, 16, 0, 0, Math.PI * 2);
-  ctx.ellipse(cloudX + 36, 64, 28, 12, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#214e3a';
-  ctx.beginPath();
-  ctx.moveTo(0, height * 0.62);
-  ctx.quadraticCurveTo(width * 0.5, height * 0.5, width, height * 0.6);
-  ctx.lineTo(width, height);
-  ctx.lineTo(0, height);
-  ctx.fill();
-  ctx.fillStyle = '#3d8ea3';
-  ctx.fillRect(0, riverY, width, height - riverY);
-  ctx.strokeStyle = 'rgba(216,243,220,0.45)';
-  for (let i = 0; i < 4; i++) {
-    const y = riverY + 18 + i * 16;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.quadraticCurveTo(width * 0.5, y + Math.sin(time / 300 + i) * 4, width, y);
-    ctx.stroke();
-  }
-  ctx.fillStyle = '#6b4632';
-  ctx.fillRect(nest.x - 6, nest.y, 14, 70);
-  ctx.fillStyle = '#1f6b45';
-  ctx.beginPath();
-  ctx.ellipse(nest.x, nest.y - 8, 70, 46, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#c4a574';
-  ctx.beginPath();
-  ctx.ellipse(nest.x, nest.y + 22, 36, 12, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(boat.x - 28, boat.y);
-  ctx.lineTo(boat.x + 28, boat.y);
-  ctx.lineTo(boat.x + 18, boat.y + 12);
-  ctx.lineTo(boat.x - 18, boat.y + 12);
-  ctx.fill();
-  ctx.strokeStyle = '#fdf3e2';
-  ctx.beginPath();
-  ctx.moveTo(boat.x, boat.y);
-  ctx.lineTo(boat.x, boat.y - 22);
-  ctx.stroke();
-
-  function ring(spot, active) {
-    ctx.beginPath();
-    ctx.arc(spot.x, spot.y, spot.r, 0, Math.PI * 2);
-    ctx.strokeStyle = active ? '#ffe9b0' : 'rgba(253,243,226,0.55)';
-    ctx.lineWidth = active ? 3 : 1.5;
-    ctx.setLineDash([6, 5]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#fdf3e2';
-    ctx.font = '700 13px Manrope, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(spot.name, spot.x, spot.y - spot.r - 8);
-  }
-  ring(nest, zone === 'cautious');
-  ring(boat, zone === 'clever');
-  if (zone === 'bold') {
-    ctx.strokeStyle = '#ffe9b0';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(8, riverY + 4, width - 16, height - riverY - 12);
-  }
-  ctx.fillStyle = '#fdf3e2';
-  ctx.font = '700 13px Manrope, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('RIVER · a gamble', 16, riverY + 22);
-
-  const flap = Math.sin(time / 90) * 10;
-  ctx.save();
-  ctx.translate(eagle.x, eagle.y);
-  ctx.fillStyle = '#3e342c';
-  ctx.beginPath();
-  ctx.moveTo(-6, 0);
-  ctx.quadraticCurveTo(-28, -18 - flap, -46, -2);
-  ctx.quadraticCurveTo(-20, 6, -6, 3);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(6, 0);
-  ctx.quadraticCurveTo(28, -18 - flap, 46, -2);
-  ctx.quadraticCurveTo(20, 6, 6, 3);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 16, 7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#ffcf7a';
-  ctx.beginPath();
-  ctx.arc(14, -1, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-
-  const hint = busy ? 'The river is answering...'
-    : zone === 'cautious' ? 'Nest fixes the branches. Click or press space.'
-    : zone === 'clever' ? 'Boat finds food. Click or press space.'
-    : zone === 'bold' ? 'River is a gamble. Click or press space.'
-    : 'Fly to the nest, the boat, or the river.';
-  ctx.font = '600 15px Manrope, sans-serif';
-  ctx.fillStyle = 'rgba(36,27,46,0.78)';
-  ctx.fillRect(16, 16, ctx.measureText(hint).width + 28, 32);
-  ctx.fillStyle = '#fdf3e2';
-  ctx.textAlign = 'left';
-  ctx.fillText(hint, 28, 38);
-  requestAnimationFrame(paint);
-}
-
-function render(data) {
+function renderHud(data) {
   const campus = data.campus || {};
   world = campus;
   const temp = campus.temp_f == null ? '' : `${campus.temp_f}°F · `;
@@ -232,51 +61,49 @@ function render(data) {
   if (data.food <= 3) worry.push('the chicks are hungry');
   els.warn.hidden = worry.length === 0 || data.over;
   els.warn.textContent = worry.length ? `Watch the bars. Right now ${worry.join(' and ')}.` : '';
+}
+
+function showStory(data) {
+  renderHud(data);
   els.outcome.hidden = !data.outcome;
   els.outcome.textContent = data.outcome || '';
   if (data.over) {
     showEnding(data);
     return;
   }
-  locked = false;
+  const scene = data.scene;
+  const dayNo = data.turn - 1;
+  const talk = scene && scene.dialogue
+    ? `<div class="dialogue"><span class="who">${escape(scene.dialogue.speaker)}</span><span>${escape(scene.dialogue.line)}</span></div>`
+    : '';
+  els.scene.hidden = false;
+  els.scene.classList.remove('busy');
+  els.scene.innerHTML = `<div class="kicker">Day ${dayNo}</div><p class="narration">${escape(scene.narration)}</p>${talk}`;
   els.ending.hidden = true;
   sky.hidden = false;
   els.fly.hidden = false;
-  els.choices.hidden = false;
-  els.scene.hidden = false;
-  const scene = data.scene;
-  const dayNo = data.turn;
-  const talk = scene.dialogue
-    ? `<div class="dialogue"><span class="who">${escape(scene.dialogue.speaker)}</span><span>${escape(scene.dialogue.line)}</span></div>`
-    : '';
-  els.scene.innerHTML = `<div class="kicker">Day ${dayNo}</div><p class="narration">${escape(scene.narration)}</p>${talk}`;
-  els.choices.innerHTML = scene.choices.map((choice) => {
-    const [label, effect] = LABELS[choice.kind];
-    return `<div class="choice"><span class="tag ${choice.kind}">${label} · ${effect}</span>`
-      + `<button type="button" data-kind="${choice.kind}">${escape(choice.text)}</button></div>`;
-  }).join('');
-  if (data.audio && els.voice.checked) {
-    const player = new Audio(data.audio);
-    player.play().catch(() => {});
-  }
+  nextDay.hidden = false;
+  nextDay.textContent = `Fly day ${data.turn}`;
+  playVoice();
 }
 
 function showEnding(data) {
-  locked = true;
+  mode = 'over';
+  flight = null;
   sky.hidden = true;
   els.fly.hidden = true;
-  els.choices.hidden = true;
+  nextDay.hidden = true;
   els.scene.hidden = true;
   els.ending.hidden = false;
   const banner = data.won
-    ? `<div class="banner won"><h2>The chicks fledged.</h2><p class="score">${data.score}</p><p>Nest health and food, still holding on day eight.</p></div>`
+    ? `<div class="banner won"><h2>The chicks fledged.</h2><p class="score">${data.score}</p><p>Nest health and food, still holding after eight flights.</p></div>`
     : '<div class="banner lost"><h2>The nest was lost.</h2><p>The river is still there. The next story can end differently.</p></div>';
   const ending = data.ending ? `<p class="narration">${escape(data.ending)}</p>` : '';
   const log = (data.log || []).map((row) => (
-    `<div class="log"><strong>Day ${row.turn}.</strong> ${escape(row.choice)} — ${escape(row.outcome)}</div>`
+    `<div class="log"><strong>Day ${row.turn}.</strong> ${escape(row.outcome)}</div>`
   )).join('');
   els.ending.innerHTML = banner + ending + '<h3>The days you flew</h3>' + log;
-  if (data.audio && els.voice.checked) new Audio(data.audio).play().catch(() => {});
+  playVoice();
 }
 
 function escape(text) {
@@ -300,87 +127,360 @@ async function call(path, extra) {
   return data;
 }
 
+let voiceToken = 0;
+function playVoice() {
+  if (!els.voice.checked) return;
+  const token = ++voiceToken;
+  call('/api/speak').then((data) => {
+    if (token !== voiceToken || !data.audio) return;
+    const player = new Audio(data.audio);
+    player.play().catch(() => {});
+  }).catch(() => {});
+}
+
+function startFlight() {
+  mode = 'fly';
+  landing = false;
+  nextDay.hidden = true;
+  els.scene.classList.remove('busy');
+  els.scene.innerHTML = '<p class="narration">Catch the fish. Dodge branches and crows. The nest repairs you, the boat feeds you, and the river is a low dangerous meal.</p>';
+  flight = {
+    t0: performance.now(),
+    y: 170,
+    vy: 0,
+    objects: [],
+    spawnIn: 500,
+    fish: 0,
+    hits: 0,
+    nest: false,
+    boat: false,
+    river: 0,
+    riverAt: 0,
+    nestSpawned: false,
+    boatSpawned: false,
+    flash: '',
+  };
+  sky.focus();
+  armSounds();
+}
+
+async function finishFlight() {
+  if (landing || !flight) return;
+  landing = true;
+  mode = 'story';
+  const flown = flight;
+  flight = null;
+  els.scene.classList.add('busy');
+  els.scene.innerHTML = '<p class="narration">You land in the branches...</p>';
+  try {
+    showStory(await call('/api/land', {
+      fish: flown.fish,
+      hits: flown.hits,
+      nest: flown.nest,
+      boat: flown.boat,
+      river: flown.river,
+    }));
+  } catch (err) {
+    els.scene.classList.remove('busy');
+    els.scene.innerHTML = `<p class="narration">${escape(err.message)}</p>`;
+    nextDay.hidden = false;
+  }
+}
+
 async function begin() {
-  busy = true;
+  mode = 'wait';
+  flight = null;
+  els.ending.hidden = true;
+  sky.hidden = false;
+  els.fly.hidden = false;
+  nextDay.hidden = true;
   els.scene.classList.add('busy');
   els.scene.innerHTML = '<p class="narration">The sun rises over the nest...</p>';
   try {
-    render(await call('/api/start'));
+    renderHud(await call('/api/start'));
+    startFlight();
   } catch (err) {
+    els.scene.classList.remove('busy');
     els.scene.innerHTML = `<p class="narration">${escape(err.message)}</p>`;
-  } finally {
-    busy = false;
-    els.scene.classList.remove('busy');
   }
 }
 
-async function land(kind) {
-  if (!kind || busy || locked) return;
-  busy = true;
-  pending = null;
-  els.scene.classList.add('busy');
-  document.querySelectorAll('#choices button').forEach((button) => { button.disabled = true; });
-  try {
-    render(await call('/api/choose', { kind }));
-  } catch (err) {
-    els.outcome.hidden = false;
-    els.outcome.textContent = err.message;
-  } finally {
-    busy = false;
-    els.scene.classList.remove('busy');
-    document.querySelectorAll('#choices button').forEach((button) => { button.disabled = false; });
-  }
+function spawn(kind, width, height) {
+  const y = kind === 'boat' ? height * 0.84
+    : kind === 'nest' ? height * 0.32
+    : kind === 'fish' ? height * (0.8 + Math.random() * 0.05)
+    : height * (0.14 + Math.random() * 0.42);
+  const radius = kind === 'gust' ? 46 : kind === 'boat' || kind === 'nest' ? 36 : 18;
+  flight.objects.push({ kind, x: width + 50, y, r: radius, got: false });
 }
 
-function aim(event) {
+function paint(now) {
+  resize();
+  const { width, height } = view;
+  const period = world.period || 'day';
+  const top = period === 'dawn' ? '#f6d7a8' : period === 'day' ? '#8ecae6' : period === 'dusk' ? '#f4a261' : '#1d2a4a';
+  const bottom = period === 'dawn' ? '#e7a16a' : period === 'day' ? '#d8f3dc' : period === 'dusk' ? '#5c4d7a' : '#121a16';
+  const skyFill = ctx.createLinearGradient(0, 0, 0, height);
+  skyFill.addColorStop(0, top);
+  skyFill.addColorStop(1, bottom);
+  ctx.fillStyle = skyFill;
+  ctx.fillRect(0, 0, width, height);
+
+  if (mode === 'fly' && flight) {
+    const dt = Math.min(0.05, (now - (flight.last || now)) / 1000);
+    flight.last = now;
+    const elapsed = now - flight.t0;
+    let speed = 220;
+    if (keys.has('ArrowLeft') || keys.has('KeyA')) speed = 120;
+    if (keys.has('ArrowRight') || keys.has('KeyD')) speed = 320;
+    if (keys.has('ArrowUp') || keys.has('KeyW')) flight.vy -= 520 * dt;
+    if (keys.has('ArrowDown') || keys.has('KeyS')) flight.vy += 520 * dt;
+    if (pointer.on) flight.vy += (pointer.y - flight.y) * 2.2 * dt;
+    flight.vy *= 0.92;
+    flight.y = Math.max(28, Math.min(height - 24, flight.y + flight.vy * dt));
+    flight.scroll = (flight.scroll || 0) + speed * dt;
+
+    if (elapsed > 6500 && !flight.nestSpawned) {
+      spawn('nest', width, height);
+      flight.nestSpawned = true;
+    }
+    if (elapsed > 13500 && !flight.boatSpawned) {
+      spawn('boat', width, height);
+      flight.boatSpawned = true;
+    }
+    flight.spawnIn -= dt * 1000;
+    if (flight.spawnIn <= 0) {
+      const roll = Math.random();
+      const kind = roll > 0.9 ? 'gust' : roll > 0.74 ? 'crow' : roll > 0.5 ? 'branch' : 'fish';
+      spawn(kind, width, height);
+      flight.spawnIn = 680;
+    }
+
+    const eagleX = width * 0.24;
+    for (const obj of flight.objects) {
+      obj.x -= speed * dt;
+      if (obj.got) continue;
+      if (Math.hypot(eagleX - obj.x, flight.y - obj.y) > obj.r + 14) continue;
+      obj.got = true;
+      if (obj.kind === 'fish') {
+        flight.fish += 1;
+        flight.flash = 'fish';
+      } else if (obj.kind === 'branch' || obj.kind === 'crow') {
+        flight.hits += 1;
+        flight.flash = 'hit';
+      } else if (obj.kind === 'nest') {
+        flight.nest = true;
+        flight.flash = 'nest';
+      } else if (obj.kind === 'boat') {
+        flight.boat = true;
+        flight.flash = 'boat';
+      } else if (obj.kind === 'gust') {
+        flight.vy += obj.y < flight.y ? 160 : -160;
+        flight.flash = 'gust';
+      }
+    }
+    flight.objects = flight.objects.filter((obj) => obj.x > -80);
+    if (flight.y > height * 0.84 && now - flight.riverAt > 900) {
+      flight.river += 1;
+      flight.riverAt = now;
+      flight.vy = -80;
+      flight.flash = 'river';
+    }
+    drawWorld(now, eagleX, flight.y, flight.objects, flight);
+    drawHud(Math.max(0, FLIGHT_MS - elapsed) / 1000, flight);
+    if (elapsed >= FLIGHT_MS) finishFlight();
+  } else {
+    drawWorld(now, width * 0.24, height * 0.42, [], null);
+    ctx.fillStyle = 'rgba(36,27,46,0.78)';
+    ctx.fillRect(16, 16, 220, 32);
+    ctx.fillStyle = '#fdf3e2';
+    ctx.font = '600 15px Manrope, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(mode === 'story' ? 'Landed. Read the day.' : 'Ready to fly.', 28, 38);
+  }
+  requestAnimationFrame(paint);
+}
+
+function drawWorld(now, eagleX, eagleY, objects, live) {
+  const { width, height } = view;
+  const riverY = height * 0.78;
+  const shift = live ? (live.scroll || 0) : now / 20;
+  ctx.fillStyle = '#4f6b3a';
+  ctx.beginPath();
+  ctx.moveTo(0, height * 0.7);
+  ctx.quadraticCurveTo(width * 0.5, height * 0.6, width, height * 0.68);
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.fill();
+  ctx.fillStyle = '#3d8ea3';
+  ctx.fillRect(0, riverY, width, height - riverY);
+  ctx.strokeStyle = 'rgba(253,243,226,0.45)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++) {
+    const y = riverY + 16 + i * 18;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.quadraticCurveTo(width * 0.5, y + Math.sin(shift / 40 + i) * 4, width, y);
+    ctx.stroke();
+  }
+  if (world.raining) {
+    ctx.strokeStyle = 'rgba(216,243,220,0.4)';
+    for (let i = 0; i < 16; i++) {
+      const x = (i * 70 + now / 8) % width;
+      ctx.beginPath();
+      ctx.moveTo(x, (i * 36) % height);
+      ctx.lineTo(x - 8, (i * 36) % height + 16);
+      ctx.stroke();
+    }
+  }
+  for (const obj of objects) drawObject(obj);
+  drawEagle(eagleX, eagleY, now);
+}
+
+function drawObject(obj) {
+  ctx.save();
+  ctx.translate(obj.x, obj.y);
+  ctx.globalAlpha = obj.got ? 0.35 : 1;
+  if (obj.kind === 'fish') {
+    ctx.fillStyle = '#ffcf7a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(-24, -6);
+    ctx.lineTo(-24, 6);
+    ctx.fill();
+  } else if (obj.kind === 'branch') {
+    ctx.strokeStyle = '#6b4632';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-20, 8);
+    ctx.lineTo(18, -10);
+    ctx.stroke();
+  } else if (obj.kind === 'crow') {
+    ctx.fillStyle = '#241b2e';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 14, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-4, 0);
+    ctx.lineTo(-18, -12);
+    ctx.lineTo(2, -2);
+    ctx.fill();
+  } else if (obj.kind === 'gust') {
+    ctx.strokeStyle = 'rgba(253,243,226,0.8)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 28, 0.4, 2.2);
+    ctx.stroke();
+  } else if (obj.kind === 'nest') {
+    ctx.fillStyle = '#7c9c4a';
+    ctx.beginPath();
+    ctx.arc(0, 0, 28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c4a574';
+    ctx.fillRect(-16, 6, 32, 8);
+    label('NEST');
+  } else if (obj.kind === 'boat') {
+    ctx.fillStyle = '#f6a25c';
+    ctx.beginPath();
+    ctx.moveTo(-26, 0);
+    ctx.lineTo(26, 0);
+    ctx.lineTo(16, 12);
+    ctx.lineTo(-16, 12);
+    ctx.fill();
+    label('BOAT');
+  }
+  ctx.restore();
+}
+
+function label(text) {
+  ctx.fillStyle = '#fdf3e2';
+  ctx.font = '700 12px Manrope, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, 0, -34);
+}
+
+function drawEagle(x, y, now) {
+  const flap = Math.sin(now / 90) * 10;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = '#3e342c';
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.quadraticCurveTo(-28, -18 - flap, -46, -2);
+  ctx.quadraticCurveTo(-20, 6, -6, 3);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(6, 0);
+  ctx.quadraticCurveTo(28, -18 - flap, 46, -2);
+  ctx.quadraticCurveTo(20, 6, 6, 3);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 16, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffcf7a';
+  ctx.beginPath();
+  ctx.arc(14, -1, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawHud(seconds, live) {
+  const labelText = `${seconds.toFixed(0)}s   fish ${live.fish}   hits ${live.hits}`;
+  ctx.font = '700 16px Manrope, sans-serif';
+  ctx.fillStyle = 'rgba(36,27,46,0.78)';
+  ctx.fillRect(16, 16, ctx.measureText(labelText).width + 28, 34);
+  ctx.fillStyle = '#fdf3e2';
+  ctx.textAlign = 'left';
+  ctx.fillText(labelText, 28, 39);
+  const ratio = seconds / 20;
+  ctx.fillStyle = 'rgba(36,27,46,0.35)';
+  ctx.fillRect(16, view.height - 18, view.width - 32, 8);
+  ctx.fillStyle = '#f6a25c';
+  ctx.fillRect(16, view.height - 18, (view.width - 32) * ratio, 8);
+}
+
+sky.addEventListener('pointerdown', (event) => {
   const rect = sky.getBoundingClientRect();
-  pointer.x = event.clientX - rect.left;
   pointer.y = event.clientY - rect.top;
   pointer.on = true;
-}
-
-sky.addEventListener('pointermove', aim);
-sky.addEventListener('pointerdown', (event) => {
-  aim(event);
   sky.focus();
   armSounds();
-  pending = zoneAt(pointer.x, pointer.y);
-  if (pending && zone === pending) land(pending);
 });
-sky.addEventListener('pointerleave', () => { pointer.on = false; });
+sky.addEventListener('pointermove', (event) => {
+  if (!pointer.on) return;
+  pointer.y = event.clientY - sky.getBoundingClientRect().top;
+});
+window.addEventListener('pointerup', () => { pointer.on = false; });
 window.addEventListener('keydown', (event) => {
-  const fly = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS', 'Space'];
+  const fly = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'];
   if (fly.includes(event.code)) {
     event.preventDefault();
     keys.add(event.code);
     armSounds();
   }
-  if (event.code === 'Digit1') land('cautious');
-  if (event.code === 'Digit2') land('clever');
-  if (event.code === 'Digit3') land('bold');
 });
 window.addEventListener('keyup', (event) => keys.delete(event.code));
-els.choices.addEventListener('click', (event) => {
-  const button = event.target.closest('button');
-  if (button) land(button.dataset.kind);
-});
+nextDay.addEventListener('click', startFlight);
 els.restart.addEventListener('click', begin);
 
 const bag = { ctx: null, nodes: null };
 function chirp() {
   if (!bag.ctx || bag.ctx.state !== 'running' || !els.sounds.checked) return;
-  const now = bag.ctx.currentTime;
+  const time = bag.ctx.currentTime;
   const osc = bag.ctx.createOscillator();
   const gain = bag.ctx.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(1900 + Math.random() * 400, now);
-  osc.frequency.exponentialRampToValueAtTime(2800 + Math.random() * 500, now + 0.09);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.04, now + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+  osc.frequency.setValueAtTime(1900 + Math.random() * 400, time);
+  osc.frequency.exponentialRampToValueAtTime(2800 + Math.random() * 500, time + 0.09);
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(0.04, time + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.16);
   osc.connect(gain).connect(bag.ctx.destination);
-  osc.start(now);
-  osc.stop(now + 0.18);
+  osc.start(time);
+  osc.stop(time + 0.18);
 }
 function armSounds() {
   if (!els.sounds.checked) return;

@@ -1,7 +1,7 @@
 import json
 import random
 
-from core.game import MAX_TURNS, State, resolve
+from core.game import MAX_TURNS, State, resolve, resolve_flight
 from core.story import fallback_scene, parse_scene, valid_scene
 
 
@@ -47,6 +47,19 @@ def test_bold_can_win_or_fail():
 def test_game_over_and_win():
     assert State(health=0).over and not State(health=0).won
     assert State(turn=MAX_TURNS + 1).won
+
+
+def test_flight_feeds_and_repairs():
+    s = State()
+    message = resolve_flight(s, fish=3, hits=1, nest=True, boat=True, river=0)
+    assert s.health == 7 and s.food == 10 and s.turn == 2
+    assert '3 fish' in message and 'boat' in message
+
+
+def test_flight_clamps_wild_counts():
+    s = State()
+    resolve_flight(s, fish=99, hits=-4, nest=False, boat=False, river=50)
+    assert s.food == 10 and s.health == 0
 
 
 def test_unknown_kind_raises():

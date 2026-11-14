@@ -16,9 +16,9 @@ from flask import Flask, jsonify, request, send_from_directory, session
 
 load_dotenv()
 
-from core.game import State, resolve
+from core.game import State, resolve, resolve_flight
 from core.michigan import michigan_now
-from core.story import ending_text, next_scene
+from core.story import ending_text, flight_story, next_scene
 from core.voice import CACHE, speak, speak_scene
 
 app = Flask(__name__)
@@ -100,17 +100,14 @@ def pack(g, here):
 
 
 def fresh(g, use_ai, use_voice):
-    here, setting = campus()
+    here, _setting = campus()
     g['use_ai'] = use_ai
     g['use_voice'] = use_voice
     g['state'] = State()
     g['outcome'] = ''
     g['ending'] = None
-    g['scene'] = next_scene(g['state'], '', use_ai, setting)
-    audio = speak_scene(g['scene']) if use_voice else None
-    body = pack(g, here)
-    body['audio'] = clip_url(audio)
-    return body
+    g['scene'] = None
+    return pack(g, here)
 
 
 @app.get('/')
@@ -153,14 +150,53 @@ def choose():
     if g['state'].over:
         g['ending'] = ending_text(g['state'], g['use_ai'])
         g['scene'] = None
-        audio = speak(g['ending']) if g['use_voice'] else None
     else:
         g['scene'] = next_scene(g['state'], g['outcome'], g['use_ai'], setting)
-        audio = speak_scene(g['scene']) if g['use_voice'] else None
-    packed = pack(g, here)
-    packed['audio'] = clip_url(audio)
-    return jsonify(packed)
+    return jsonify(pack(g, here))
+
+
+@app.post('/api/land')
+def land():
+    """The flight is over. Apply the catch and the hits, then tell that day."""
+    body = request.get_json(silent=True) or {}
+    g = game()
+    here, setting = campus()
+    if g['state'].over:
+        return jsonify(pack(g, here))
+    g['use_ai'] = bool(body.get('use_ai', g['use_ai']))
+    g['use_voice'] = bool(body.get('use_voice', g['use_voice']))
+    g['outcome'] = resolve_flight(
+        g['state'],
+        body.get('fish', 0),
+        body.get('hits', 0),
+        bool(body.get('nest')),
+        bool(body.get('boat')),
+        body.get('river', 0),
+    )
+    if g['state'].over:
+        g['ending'] = ending_text(g['state'], g['use_ai'])
+        g['scene'] = None
+    else:
+        g['ending'] = None
+        g['scene'] = flight_story(g['state'], g['outcome'], g['use_ai'], setting)
+    return jsonify(pack(g, here))
+
+
+@app.post('/api/speak')
+def speak_now():
+    """Voice is slow, so the page asks for it after the story is already on screen."""
+    g = game()
+    if not g['use_voice']:
+        return jsonify({'audio': None})
+    if g['ending']:
+        audio = speak(g['ending'])
+    elif g['scene']:
+        audio = speak_scene(g['scene'])
+    else:
+        audio = None
+    return jsonify({'audio': clip_url(audio)})
 
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5050, debug=False, threaded=True)
+    # Local play uses 5050. A host such as Render sets PORT and must be reachable on 0.0.0.0.
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5050')), debug=False, threaded=True)

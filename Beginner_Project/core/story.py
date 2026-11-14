@@ -121,6 +121,56 @@ def next_scene(state, last_outcome, use_ai=True, setting=''):
     return fallback_scene(state.turn)
 
 
+def parse_flight(text):
+    """A flight story is narration plus an optional spoken line, with no choices."""
+    if not text:
+        return None
+    start, end = text.find('{'), text.rfind('}')
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(text[start : end + 1])
+        narration = data['narration']
+        if not isinstance(narration, str) or not narration.strip():
+            return None
+        dialogue = data.get('dialogue')
+        if dialogue is not None and not (
+            isinstance(dialogue.get('speaker'), str) and isinstance(dialogue.get('line'), str)
+        ):
+            return None
+    except (KeyError, TypeError, AttributeError, json.JSONDecodeError):
+        return None
+    return {'narration': narration.strip(), 'dialogue': dialogue}
+
+
+def flight_story(state, outcome, use_ai=True, setting=''):
+    """Tell the day the player just flew. The numbers are already decided."""
+    told = {
+        'narration': outcome,
+        'dialogue': {'speaker': 'mother', 'line': 'Hold the nest. Tomorrow we fly again.'},
+    }
+    if not use_ai:
+        return told
+    where = (setting + ' ') if setting else ''
+    prompt = (
+        'You are the game master of a short, family-friendly, fictional adventure. The player is '
+        'a parent eagle who just flew beside the Huron River in Ann Arbor, Michigan. '
+        + where +
+        'Day just finished. Turn ' + str(state.turn) + ' of ' + str(MAX_TURNS) + ' is next. '
+        'What the flight did: ' + outcome + ' '
+        'Reply with ONLY JSON like {"narration":"2-3 sentences","dialogue":{"speaker":"mother","line":"one short line"}}. '
+        'Dialogue may be null. The speaker must be one of: crow, raccoon, mother, owl. '
+        'Describe the flight in the river world. Do not mention numbers, points, or game stats.'
+    )
+    try:
+        told_by_model = parse_flight(_ask_gemini(prompt))
+        if told_by_model:
+            return told_by_model
+    except Exception as err:
+        print('Gemini failed:', err)
+    return told
+
+
 def ending_text(state, use_ai=True):
     base = (
         'Your chicks fledge and soar over the river. The nest is safe.'

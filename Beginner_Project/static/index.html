@@ -10,13 +10,13 @@
   <aside>
     <h2>How to play</h2>
     <ol>
-      <li><strong>Read the day.</strong> The story tells you what is happening by the river.</li>
-      <li><strong>Pick a place.</strong> Fly the eagle there, or press the button under the story. Keys: 1 nest, 2 boat, 3 river.</li>
-      <li><strong>Last 8 days.</strong> Keep nest health and food above zero. The chicks eat every day.</li>
+      <li><strong>Fly the day.</strong> Arrow keys or W A S D. Up and down climb. Left slows you, right speeds you up.</li>
+      <li><strong>Catch and dodge.</strong> Fish feed the chicks. Branches and crows hurt the nest. A gust shoves you.</li>
+      <li><strong>Last 8 days.</strong> Each flight is 20 seconds. Keep nest health and food above zero. The chicks eat every day.</li>
     </ol>
-    <p><strong>Nest · safe.</strong> Fixes the branches.</p>
-    <p><strong>Boat · clever.</strong> Finds food.</p>
-    <p><strong>River · risky.</strong> A big meal, or a hard fall.</p>
+    <p><strong>Nest.</strong> Fly through it to patch the branches.</p>
+    <p><strong>Boat.</strong> Fly through it for an easy meal.</p>
+    <p><strong>River.</strong> More fish down low, but the water clips your wings.</p>
     <label><input id="use-ai" type="checkbox" checked> Gemini game master</label>
     <label><input id="use-voice" type="checkbox" checked> ElevenLabs voices</label>
     <label><input id="use-sounds" type="checkbox" checked> River, wind, and birds</label>
@@ -35,13 +35,13 @@
     <p id="outcome" hidden></p>
     <article id="scene"></article>
     <div class="guide">
-      <div class="safe"><strong>Nest · safe</strong><span>Fixes the nest. The sure repair.</span></div>
-      <div class="clever"><strong>Boat · clever</strong><span>Finds food for the chicks.</span></div>
-      <div class="risky"><strong>River · risky</strong><span>A big meal, or a hard fall.</span></div>
+      <div class="safe"><strong>Nest</strong><span>Fly through it. Patches the branches.</span></div>
+      <div class="clever"><strong>Boat</strong><span>Fly through it. An easy meal.</span></div>
+      <div class="risky"><strong>River</strong><span>Fish swim low. The water hits hard.</span></div>
     </div>
-    <p id="fly-line"><strong>Fly there.</strong> Move with the mouse or arrow keys, then click or press space.</p>
+    <p id="fly-line"><strong>Fly.</strong> Arrows or W A S D. The day ends when the timer does.</p>
     <canvas id="sky" tabindex="0"></canvas>
-    <div id="choices"></div>
+    <button id="next-day" type="button" hidden>Fly the next day</button>
     <section id="ending" hidden></section>
   </main>
   <script src="/static/game.js"></script>

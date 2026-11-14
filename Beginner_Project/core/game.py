@@ -29,6 +29,41 @@ def _clamp(v):
     return max(0, min(MAX_STAT, v))
 
 
+def _count(value, limit):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        number = 0
+    return max(0, min(limit, number))
+
+
+def resolve_flight(state, fish, hits, nest=False, boat=False, river=0):
+    """Apply one flown day. The flight decides the numbers; this only keeps them fair."""
+    fish = _count(fish, 15)
+    hits = _count(hits, 15)
+    river = _count(river, 8)
+    dh = (2 if nest else 0) - hits - river
+    df = fish + (2 if boat else 0) - HUNGER
+    meal = '1 fish' if fish == 1 else f'{fish} fish'
+    bits = [f'You brought home {meal}.']
+    if boat:
+        bits.append('The fishing boat stirred up an easy meal.')
+    if nest:
+        bits.append('You patched the nest on the way past.')
+    if hits:
+        struck = '1 hazard' if hits == 1 else f'{hits} hazards'
+        bits.append(f'You struck {struck}.')
+    if river:
+        bits.append('The river clipped your wings.')
+    bits.append('The chicks ate.')
+    msg = ' '.join(bits)
+    state.health = _clamp(state.health + dh)
+    state.food = _clamp(state.food + df)
+    state.log.append((state.turn, 'Flew the river', msg))
+    state.turn += 1
+    return msg
+
+
 def resolve(state, kind, text='', rng=random):
     """Apply one choice plus the world's reaction. Returns a short outcome message."""
     if kind == 'cautious':

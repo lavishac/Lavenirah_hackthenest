@@ -37,7 +37,7 @@ def speak(text, speaker='narrator'):
         chunks = _client.text_to_speech.convert(
             text=text,
             voice_id=voice,
-            model_id='eleven_multilingual_v2',
+            model_id='eleven_flash_v2_5',
             output_format='mp3_44100_128',
         )
         audio = b''.join(chunks)
