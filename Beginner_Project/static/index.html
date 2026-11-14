@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nest Defender</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside>
+    <h2>How to play</h2>
+    <ol>
+      <li><strong>Read the day.</strong> The story tells you what is happening by the river.</li>
+      <li><strong>Pick a place.</strong> Fly the eagle there, or press the button under the story. Keys: 1 nest, 2 boat, 3 river.</li>
+      <li><strong>Last 8 days.</strong> Keep nest health and food above zero. The chicks eat every day.</li>
+    </ol>
+    <p><strong>Nest · safe.</strong> Fixes the branches.</p>
+    <p><strong>Boat · clever.</strong> Finds food.</p>
+    <p><strong>River · risky.</strong> A big meal, or a hard fall.</p>
+    <label><input id="use-ai" type="checkbox" checked> Gemini game master</label>
+    <label><input id="use-voice" type="checkbox" checked> ElevenLabs voices</label>
+    <label><input id="use-sounds" type="checkbox" checked> River, wind, and birds</label>
+    <button id="restart" type="button">Start a new story</button>
+    <p id="sound-note">Click the sky to hear the river.</p>
+  </aside>
+  <main>
+    <header>
+      <h1>Nest Defender</h1>
+      <p class="sub">Keep the nest standing and the chicks fed for 8 days.</p>
+      <p id="weather"></p>
+    </header>
+    <div id="days"></div>
+    <div id="meters"></div>
+    <p id="warn" hidden></p>
+    <p id="outcome" hidden></p>
+    <article id="scene"></article>
+    <div class="guide">
+      <div class="safe"><strong>Nest · safe</strong><span>Fixes the nest. The sure repair.</span></div>
+      <div class="clever"><strong>Boat · clever</strong><span>Finds food for the chicks.</span></div>
+      <div class="risky"><strong>River · risky</strong><span>A big meal, or a hard fall.</span></div>
+    </div>
+    <p id="fly-line"><strong>Fly there.</strong> Move with the mouse or arrow keys, then click or press space.</p>
+    <canvas id="sky" tabindex="0"></canvas>
+    <div id="choices"></div>
+    <section id="ending" hidden></section>
+  </main>
+  <script src="/static/game.js"></script>
+</body>
+</html>
