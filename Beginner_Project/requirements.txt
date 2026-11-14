@@ -1,0 +1,6 @@
+streamlit
+google-genai
+elevenlabs
+python-dotenv
+pytest
+ruff
