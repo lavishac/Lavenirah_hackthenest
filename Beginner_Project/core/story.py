@@ -3,9 +3,8 @@ import os
 
 from core.game import KINDS, MAX_TURNS
 
-# Paste the exact model name from your hackathon starter app.py here,
-# or set GEMINI_MODEL in .env to override it.
-MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+# New AI Studio accounts cannot call gemini-2.5-flash. Override with GEMINI_MODEL in .env.
+MODEL = os.getenv('GEMINI_MODEL', 'gemini-3.1-flash-lite')
 _client = None
 
 FALLBACK_SCENES = [
@@ -96,11 +95,12 @@ EXAMPLE = {
 }
 
 
-def build_prompt(state, last_outcome):
+def build_prompt(state, last_outcome, setting=''):
+    where = (setting + ' ') if setting else ''
     return (
         'You are the game master of a short, family-friendly, fictional adventure. The player is '
-        'a parent eagle defending a nest in a tall tree beside a river near a university campus in '
-        'Michigan. Dangers are scary but never graphic. '
+        'a parent eagle defending a nest in a tall tree beside the Huron River in Ann Arbor, '
+        'Michigan. Dangers are scary but never graphic. ' + where +
         'Turn ' + str(state.turn) + ' of ' + str(MAX_TURNS) + '. Nest health ' + str(state.health) + '/10, '
         'food ' + str(state.food) + '/10. What just happened: ' + (last_outcome or 'the story begins') + '. '
         'Write the next scene. Reply with ONLY JSON shaped like this: ' + json.dumps(EXAMPLE) + ' '
@@ -110,10 +110,10 @@ def build_prompt(state, last_outcome):
     )
 
 
-def next_scene(state, last_outcome, use_ai=True):
+def next_scene(state, last_outcome, use_ai=True, setting=''):
     if use_ai:
         try:
-            scene = parse_scene(_ask_gemini(build_prompt(state, last_outcome)))
+            scene = parse_scene(_ask_gemini(build_prompt(state, last_outcome, setting)))
             if scene:
                 return scene
         except Exception as err:
