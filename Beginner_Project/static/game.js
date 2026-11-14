@@ -84,7 +84,7 @@ function showStory(data) {
   els.fly.hidden = false;
   nextDay.hidden = false;
   nextDay.textContent = `Fly day ${data.turn}`;
-  playVoice();
+  playVoice(data);
 }
 
 function showEnding(data) {
@@ -103,7 +103,7 @@ function showEnding(data) {
     `<div class="log"><strong>Day ${row.turn}.</strong> ${escape(row.outcome)}</div>`
   )).join('');
   els.ending.innerHTML = banner + ending + '<h3>The days you flew</h3>' + log;
-  playVoice();
+  playVoice(data);
 }
 
 function escape(text) {
@@ -128,14 +128,55 @@ async function call(path, extra) {
 }
 
 let voiceToken = 0;
-function playVoice() {
+let voiceDown = false;
+
+function spokenLines(data) {
+  if (!data) return '';
+  if (data.ending) return data.ending;
+  const scene = data.scene;
+  if (!scene) return '';
+  const line = scene.dialogue && scene.dialogue.line;
+  return [scene.narration, line].filter(Boolean).join('. ');
+}
+
+function armSpeech() {
+  if (!window.speechSynthesis || armSpeech.ready) return;
+  armSpeech.ready = true;
+  const primer = new SpeechSynthesisUtterance(' ');
+  primer.volume = 0;
+  window.speechSynthesis.speak(primer);
+}
+
+function speakInBrowser(text) {
+  if (!text || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.rate = 0.96;
+  window.speechSynthesis.speak(utter);
+}
+
+function playVoice(data) {
   if (!els.voice.checked) return;
   const token = ++voiceToken;
+  const text = spokenLines(data);
+  if (voiceDown) {
+    speakInBrowser(text);
+    return;
+  }
   call('/api/speak').then((data) => {
-    if (token !== voiceToken || !data.audio) return;
-    const player = new Audio(data.audio);
-    player.play().catch(() => {});
-  }).catch(() => {});
+    if (token !== voiceToken) return;
+    if (data.audio) {
+      const player = new Audio(data.audio);
+      player.play().catch(() => speakInBrowser(text));
+      return;
+    }
+    voiceDown = true;
+    speakInBrowser(text);
+  }).catch(() => {
+    if (token !== voiceToken) return;
+    voiceDown = true;
+    speakInBrowser(text);
+  });
 }
 
 function startFlight() {
@@ -162,6 +203,7 @@ function startFlight() {
   };
   sky.focus();
   armSounds();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
 async function finishFlight() {
@@ -448,6 +490,7 @@ sky.addEventListener('pointerdown', (event) => {
   pointer.on = true;
   sky.focus();
   armSounds();
+  armSpeech();
 });
 sky.addEventListener('pointermove', (event) => {
   if (!pointer.on) return;
@@ -460,6 +503,7 @@ window.addEventListener('keydown', (event) => {
     event.preventDefault();
     keys.add(event.code);
     armSounds();
+    armSpeech();
   }
 });
 window.addEventListener('keyup', (event) => keys.delete(event.code));

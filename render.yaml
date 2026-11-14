@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: nest-defender
+    runtime: python
+    rootDir: Beginner_Project
+    buildCommand: pip install -r requirements.txt
+    startCommand: python play.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.11
