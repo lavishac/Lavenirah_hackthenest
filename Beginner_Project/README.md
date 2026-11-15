@@ -1,8 +1,21 @@
 # Nest Defender
 
+**A voice-narrated survival game. Every day on the river is read aloud, each character in its own voice — the game is meant to be heard.**
+
 You play a parent eagle on the Huron River in Ann Arbor. Each day is a 20-second flight. Python decides the score, Gemini writes what that flight felt like, and a voice reads it after the words are already on the screen.
 
 You start with nest health **6** and food **6**. There are **8** days. The chicks eat **1** food every day, even on a perfect flight. You win if both numbers are still above zero after day 8.
+
+## Tracks and prizes
+
+One project, aimed where its core already lives — the voice.
+
+- **Best Use of ElevenLabs (primary).** The game is meant to be *heard*: every day's scene is narrated aloud, each character in its own ElevenLabs voice. The voice is the product, not a feature bolted on.
+- **MLH — Best Use of Gemini API.** Gemini is the storyteller that turns each flight's result into a scene. (Our Google Cloud project ID is in the Devpost submission.)
+- **Best Beginner.** Most of our team is at their first hackathon — see `LEARNING.md` for the before/after and our hardest bug.
+- **Overall prizes.** Judged science-fair style across all projects.
+
+Optional if time allows: **MongoDB** (save each run) and **SSOJet** (sign-in for saved stories).
 
 ## How a flight works
 
